@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using MyApp.Data;
 using MyApp.Models;
 
@@ -7,16 +8,16 @@ namespace MyApp.Controllers
 {
     public class ItemsController : Controller
     {
-        public IActionResult Overview()
-        {
-            var item = new Item() { Name = "keyboard" };
-            return View(item);
-        }
+        //public IActionResult Overview()
+        //{
+        //    var item = new Item() { Name = "keyboard" };
+        //    return View(item);
+        //}
 
-        public IActionResult Edit(int itemId)
-        {
-            return Content("itemId = " + itemId);
-        }
+        //public IActionResult Edit(int itemId)
+        //{
+        //    return Content("itemId = " + itemId);
+        //}
 
         private readonly MyAppContext _context;
         public ItemsController(MyAppContext context)
@@ -26,17 +27,22 @@ namespace MyApp.Controllers
 
         public async Task<IActionResult> Index()
         {
-            var item = await _context.Items.ToListAsync();
+            var item = await _context.Items.Include(s => s.SerialNumber)
+                .Include(c=>c.Category)
+                .Include(ic => ic.ItemClients)
+                .ThenInclude(c => c.Client)
+                .ToListAsync();
             return View(item);
         }
 
         public IActionResult Create()
         {
+            ViewData["Categories"] = new SelectList(_context.Categories, "Id", "Name");
             return View();
         }
 
         [HttpPost]
-        public async Task<IActionResult> Create([Bind("Id, Name, Price")] Item item)
+        public async Task<IActionResult> Create([Bind("Id, Name, Price, CategoryId")] Item item)
         {
             if (ModelState.IsValid)
             {
@@ -46,5 +52,43 @@ namespace MyApp.Controllers
             }
             return View(item);
         }
+
+        public async Task<IActionResult> Edit(int id)
+        {
+            ViewData["Categories"] = new SelectList(_context.Categories, "Id", "Name");
+            var item = await _context.Items.FirstOrDefaultAsync(x => x.Id == id);
+            return View(item);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Edit(int id, [Bind("Id, Name, Price, CategoryId")] Item item)
+        {
+            if (ModelState.IsValid)
+            {
+                _context.Update(item);
+                await _context.SaveChangesAsync();
+                return RedirectToAction("Index");
+            }
+            return View(item);
+        }
+
+        public async Task<IActionResult> Delete(int id)
+        {
+            var item = await _context.Items.FirstOrDefaultAsync(x => x.Id == id);
+            return View(item);
+        }
+
+        [HttpPost, ActionName("Delete")]
+        public async Task<IActionResult> DeleteConfirmed(int id)
+        {
+            var item = await _context.Items.FindAsync(id);
+            if (item != null)
+            {
+                _context.Items.Remove(item);
+                await _context.SaveChangesAsync();
+            }
+            return RedirectToAction("Index");
+        }
+
     }
 }
